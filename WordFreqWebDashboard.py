@@ -333,12 +333,10 @@ with tab_senti:
 # 탭 3 — 비슷한 영화 추천 (코멘트 TF-IDF 코사인 유사도)
 # ══════════════════════════════════════════════════════════
 with tab_rec:
-    st.markdown(
-        "영화 코멘트의 단어 사용을 **TF-IDF + 코사인 유사도**로 비교해, "
-        "**코멘트 분위기가 비슷한 영화**를 추천합니다."
-    )
-
     if not rec.model_exists():
+        st.markdown(
+            "영화 코멘트의 단어 사용을 **TF-IDF + 코사인 유사도**로 비교해 추천합니다."
+        )
         st.warning(
             "추천 모델이 없습니다. 터미널에서 먼저 만들어 주세요:\n\n"
             "```\npy build_recommender.py\n```"
@@ -346,6 +344,18 @@ with tab_rec:
     else:
         recommender = get_recommender()
         rec_movies = recommender.movie_list()
+        has_senti = recommender.has_sentiment()
+
+        if has_senti:
+            st.markdown(
+                "추천에 쓰는 두 신호 모두 **크롤링한 코멘트에서** 나옵니다.\n"
+                "- 🗣️ **분위기·소재**: 코멘트 단어 TF-IDF 코사인 유사도\n"
+                "- 😊 **관객 호불호 반응**: LSTM 감성모델(왓챠 코멘트로 학습)이 매긴 **호평률** 유사도"
+            )
+        else:
+            st.markdown(
+                "영화 코멘트의 단어 사용을 **TF-IDF + 코사인 유사도**로 비교해 추천합니다."
+            )
 
         # 사이드바에서 고른 영화가 추천 대상(코멘트 50개 이상)이 아니면 안내
         if movie and movie not in rec_movies:
@@ -359,29 +369,45 @@ with tab_rec:
         c1, c2 = st.columns(2)
         base_movie = c1.selectbox("기준 영화 선택", rec_movies, index=default_idx)
         n_rec = c2.slider("추천 개수", 3, 10, 5)
-        min_sim = c2.slider("최소 유사도 (이 값 미만은 숨김)", 0.05, 0.40, 0.15, 0.01)
+        min_sim = c2.slider("최소 분위기 유사도 (이 값 미만 숨김)", 0.05, 0.40, 0.12, 0.01)
+
+        if has_senti:
+            alpha = c1.slider(
+                "가중치 (← 호불호 반응 중시  ·  분위기 중시 →)",
+                0.0, 1.0, 0.7, 0.05,
+                help="왼쪽일수록 '관객 호불호 반응'을, 오른쪽일수록 '코멘트 분위기·소재'를 더 본다",
+            )
+            base_pr = recommender.reception(base_movie)
+            c1.caption(f"📊 **{base_movie}** 관객 호평률: **{base_pr:.0%}**")
+        else:
+            alpha = 1.0
 
         st.caption(f"🔑 **{base_movie}** 대표 키워드: "
                    + ", ".join(recommender.keywords(base_movie)))
         st.divider()
 
-        recs = recommender.recommend(base_movie, top_n=n_rec, min_sim=min_sim)
+        recs = recommender.recommend(base_movie, top_n=n_rec, min_sim=min_sim, alpha=alpha)
         if not recs:
             st.info(
-                f"유사도 {min_sim:.2f} 이상으로 충분히 비슷한 영화가 없습니다. "
+                f"분위기 유사도 {min_sim:.2f} 이상으로 충분히 비슷한 영화가 없습니다. "
                 "(왓챠 코멘트 어휘가 뚜렷이 겹치는 영화가 없다는 뜻)"
             )
         else:
-            st.caption(f"유사도 {min_sim:.2f} 이상만 표시 · {len(recs)}편 추천")
             st.markdown(f"#### 🎬 **{base_movie}** 와(과) 비슷한 영화")
-            for rank, (title, score) in enumerate(recs, 1):
+            for rank, r in enumerate(recs, 1):
+                title, score = r["title"], r["score"]
                 common = recommender.common_terms(base_movie, title, top_n=6)
-                reason = ("**" + base_movie + "**와 코멘트에 **"
-                          + " · ".join(common) + "** 가 함께 자주 등장") if common \
+                reason = ("코멘트에 **" + " · ".join(common) + "** 가 함께 자주 등장") if common \
                     else "코멘트 어휘가 전반적으로 유사"
+                detail = ""
+                if has_senti:
+                    detail = (f"  \n<span style='color:#10B981;font-size:0.85em'>"
+                              f"🗣️ 분위기 {r['topic']:.2f} · 😊 반응유사 {r['recep']:.2f} · "
+                              f"관객 호평률 {r['pos_ratio']:.0%}</span>")
                 st.markdown(
-                    f"**{rank}. {title}**  ·  유사도 `{score:.2f}`  \n"
-                    f"<span style='color:#3B82F6;font-size:0.9em'>🔗 비슷한 이유: {reason}</span>",
+                    f"**{rank}. {title}**  ·  종합점수 `{score:.2f}`  \n"
+                    f"<span style='color:#3B82F6;font-size:0.9em'>🔗 비슷한 이유: {reason}</span>"
+                    f"{detail}",
                     unsafe_allow_html=True,
                 )
                 st.progress(min(1.0, score))
@@ -389,6 +415,6 @@ with tab_rec:
 st.divider()
 st.caption(
     "데이터 출처: 왓챠피디아 크롤링 | 형태소 분석: KoNLPy(Okt) | "
-    "감성분석: LSTM (왓챠 코멘트 학습) | 추천: TF-IDF 코사인 유사도 | "
+    "감성분석: LSTM (왓챠 코멘트 학습) | 추천: 코멘트 TF-IDF + 호평률(감성) 결합 | "
     "시각화: WordCloud · Matplotlib · Streamlit"
 )

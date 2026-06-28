@@ -29,34 +29,61 @@ class MovieRecommender:
         self.top_terms = data.get("top_terms", {})    # 영화별 대표 키워드
         self.tfidf = data.get("tfidf")                # 영화×단어 TF-IDF
         self.terms = data.get("terms")                # 단어 목록
+        self.pos_ratio = data.get("pos_ratio")        # 영화별 호평률(0~1) — 감성모델 결과
         self._index = {m: i for i, m in enumerate(self.movies)}
 
     def movie_list(self) -> list[str]:
         return list(self.movies)
 
-    def recommend(
-        self, movie: str, top_n: int = 5, min_sim: float = 0.15
-    ) -> list[tuple[str, float]]:
-        """주어진 영화와 유사도가 높은 영화 top_n개를 반환한다.
+    def has_sentiment(self) -> bool:
+        """호평률(감성) 정보가 모델에 포함되어 있는지."""
+        return self.pos_ratio is not None
 
-        - min_sim 미만의 약한(억지) 추천은 제외한다.
-        반환: [(영화제목, 유사도0~1), ...]  (자기 자신 제외)
+    def reception(self, movie: str) -> float | None:
+        """영화의 관객 호평률(0~1). 감성 정보가 없으면 None."""
+        if self.pos_ratio is None or movie not in self._index:
+            return None
+        return float(self.pos_ratio[self._index[movie]])
+
+    def recommend(
+        self, movie: str, top_n: int = 5, min_sim: float = 0.12, alpha: float = 0.7
+    ) -> list[dict]:
+        """주어진 영화와 비슷한 영화 top_n개를 반환한다.
+
+        두 가지 신호를 결합한다 (둘 다 크롤링한 코멘트에서 나옴):
+          - topic : 코멘트 단어(TF-IDF) 유사도 — '분위기·소재가 비슷한가'
+          - recep : 호평률(LSTM 감성) 유사도 — '관객 호불호 반응이 비슷한가'
+        최종점수 = alpha·topic + (1-alpha)·recep   (alpha=토픽 가중치)
+
+        - min_sim 미만으로 topic 유사도가 약한 영화는 후보에서 제외(엉뚱한 추천 방지).
+        - 감성 정보가 없는 모델이면 topic 만으로 동작(하위 호환).
+        반환: [{title, score, topic, recep, pos_ratio}, ...]  (자기 자신 제외, score 내림차순)
         """
         if movie not in self._index:
             return []
         idx = self._index[movie]
-        scores = list(enumerate(self.sim[idx]))
-        scores.sort(key=lambda x: x[1], reverse=True)
-        result = []
-        for j, s in scores:
-            if j == idx:                 # 자기 자신 제외
+        have_senti = self.pos_ratio is not None
+
+        scored = []
+        for j in range(len(self.movies)):
+            if j == idx:
                 continue
-            if s < min_sim:              # 약한 추천은 잘라냄
-                break
-            result.append((self.movies[j], float(s)))
-            if len(result) >= top_n:
-                break
-        return result
+            topic = float(self.sim[idx][j])
+            if topic < min_sim:                  # 토픽이 약하면 후보 제외
+                continue
+            if have_senti:
+                recep = 1.0 - abs(self.pos_ratio[idx] - self.pos_ratio[j])
+                score = alpha * topic + (1 - alpha) * recep
+                pr = float(self.pos_ratio[j])
+            else:
+                recep, score, pr = None, topic, None
+            scored.append({
+                "title": self.movies[j], "score": score,
+                "topic": topic, "recep": recep, "pos_ratio": pr,
+            })
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return scored[:top_n]
 
     def keywords(self, movie: str) -> list[str]:
         """영화의 대표 키워드(추천 근거)."""
