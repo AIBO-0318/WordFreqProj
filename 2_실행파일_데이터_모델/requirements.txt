@@ -1,0 +1,16 @@
+streamlit
+pandas
+numpy
+matplotlib
+wordcloud
+konlpy
+tensorflow
+scikit-learn
+joblib
+tqdm
+
+# 크롤러(crawler/)용
+selenium
+webdriver-manager
+beautifulsoup4
+requests
