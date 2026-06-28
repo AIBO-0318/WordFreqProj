@@ -1,0 +1,35 @@
+# ── 비밀값 ───────────────────────────────────────────────
+crawler/.env
+.env
+*.pkl                      # 세션 쿠키·토크나이저 등 (watcha_session.pkl 등)
+
+# ── 대용량 데이터 (GitHub 100MB 제한) ─────────────────────
+data/*.csv
+data/*.json
+*.csv
+*.zip
+
+# 수집 진행 기록
+**/visited_urls.txt
+**/*_visited_urls.txt
+api_capture.json
+
+# ── 학습된 모델 ──────────────────────────────────────────
+model/*.keras
+model/*.pkl
+
+# ── 파이썬 ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── 기타 ─────────────────────────────────────────────────
+.ipynb_checkpoints/
+debug_page.html
+*.log
+.DS_Store
+.vscode/
+.idea/
