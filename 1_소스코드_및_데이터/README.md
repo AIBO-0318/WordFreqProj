@@ -10,10 +10,8 @@
 | 수집 | `crawler/` | 왓챠·CGV·로저이버트·박스오피스 크롤러 (자세히는 `crawler/README.md`) |
 | 준비 | `crawler/preprocess.py` | 코멘트 정제(중복·길이·노이즈 제거) |
 | 준비 | `make_watcha_labeled.py` | KNU 한국어 감성사전으로 코멘트 자동 라벨링 |
-| 준비 | `prep_ai_labels.py` · `finetune_ai.py` | AI 라벨 보강·파인튜닝(보조) |
 | 학습 | `train_sentiment_model.py` | LSTM 감성분석 모델 학습 |
 | 학습 | `build_recommender.py` | 추천 모델(코멘트 TF-IDF + 호평률) 빌드 |
-| 학습 | `add_sentiment_profile.py` | 기존 추천 모델에 호평률만 추가 |
 | 서비스 | `WordFreqWebDashboard.py` | Streamlit 대시보드 |
 | 공통 | `mylib/` | 텍스트분석·감성·추천·시각화 모듈 |
 
@@ -24,7 +22,6 @@
 | `watcha_comments_clean.csv` | 정제된 왓챠 코멘트 (약 150만 건 / 309편) — 분석 대상 |
 | `watcha_labeled.csv` | 자동 라벨링된 감성 학습 데이터 |
 | `SentiWord_info.json` | KNU 한국어 감성사전 |
-| `ai_pool.csv` · `ai_labels_b*.csv` | AI 라벨 보강용 풀/배치 |
 
 ## 처음부터 재현하기
 
